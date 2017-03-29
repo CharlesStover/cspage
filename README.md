@@ -24,7 +24,9 @@ I encourage pull/merge requests and discussion on improvements, but I would pref
 * Methods
 	* module($module)
 		<p>Initializes and/or returns a module to use its methods.</p>
-	* setLocalhost($boolean)
+	* devMachine()
+		<p>Returns whether or not the running machine is a development machine.</p>
+	* devMachine($boolean)
 		<p>Sets whether or not the program is operating on a development machine.</p>
 * Modules
 	* Cache
