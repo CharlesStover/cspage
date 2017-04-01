@@ -2,7 +2,7 @@
 
 class CSPage_MimeType {
 
-	private
+	private static
 		$mime_types = array(
 			'123'         => 'application/vnd.lotus-1-2-3',
 			'3dml'        => 'text/vnd.in3d.3dml',
@@ -986,15 +986,7 @@ class CSPage_MimeType {
 			'zir'         => 'application/vnd.zul',
 			'zirz'        => 'application/vnd.zul',
 			'zmm'         => 'application/vnd.handheld-entertainment+xml'
-		),
-		$parent = null;
-
-
-
-	// Constructor
-	public function __construct($parent = null) {
-		return $this->setParent($parent);
-	}
+		);
 
 
 
@@ -1002,17 +994,9 @@ class CSPage_MimeType {
 	public function get($file) {
 		$ext = array_pop(explode('.', $file));
 		return
-			array_key_exists($ext, $this->mime_types) ?
-			$this->mime_types[$ext] :
+			array_key_exists($ext, self::$mime_types) ?
+			self::$mime_types[$ext] :
 			null;
-	}
-
-
-
-	// Set parent object.
-	public function setParent($parent = null) {
-		$this->parent = $parent;
-		return $this;
 	}
 
 }
