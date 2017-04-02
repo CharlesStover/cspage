@@ -22,10 +22,11 @@ class CSPage {
 		$debug         = array(),
 		$debug_enabled = false,
 		$dev_machine   = false,
-		$errors      = array(),
-		$modules     = array(),
-		$time_start  = 0,
-		$version     = 0.1;
+		$errors        = array(),
+		$hooks         = array(),
+		$modules       = array(),
+		$time_start    = 0,
+		$version       = 0.1;
 
 	private static
 		$errnos = array(
@@ -210,6 +211,29 @@ class CSPage {
 
 
 
+	// Get or set hooks.
+	public function hook($id, $callback = null) {
+
+		// Get hooks.
+		if (is_null($callback)) {
+			$value = '';
+			if (array_key_exists($id, $this->hooks)) {
+				$count_hooks = count($this->hooks[$id]);
+				for ($x = 0; $x < $count_hooks; $x++)
+					$value .= $this->hooks[$id][$x]();
+			}
+			return $value;
+		}
+
+		// Set hooks.
+		if (!array_key_exists($id, $this->hooks))
+			$this->hooks[$id] = array();
+		array_push($this->hooks[$id], $callback);
+		return count($this->hooks[$id]) - 1;
+	}
+
+
+
 	// Load a module.
 	private function loadModule($module) {
 		$this->debug(array('Loading module.', $module));
@@ -357,6 +381,15 @@ class CSPage {
 	// Execution time thus far.
 	public function time() {
 		return microtime(true) - $this->time_start;
+	}
+
+
+
+	// Truncate text...
+	public function truncate($str, $len = 15, $symbol = '...') {
+		if (strlen($str) > $len)
+			return substr($str, 0, $len - strlen($symbol)) . $symbol;
+		return $str;
 	}
 
 
