@@ -1,21 +1,5 @@
 <?php
 
-/*
-TO-DO:
-	Compress:
-		optipng
-	CSS:
-		LESS and SASS
-	HTML:
-		move CSS media=print to foot of <body>
-*/
-
-
-
-// Don't define twice.
-if (class_exists('CSPage'))
-	return;
-
 /**
  * Automated webpage optimization utility that caches, compresses, concatenates, and otherwise optimizes HTML, CSS, JavaScript, and static file content distribution.
  *
@@ -27,6 +11,10 @@ if (class_exists('CSPage'))
  * @link       https://github.com/CharlesStover/cspage
  * @version    0.1
  */
+
+// Don't define twice.
+if (class_exists('CSPage'))
+	return;
 
 class CSPage {
 
@@ -86,7 +74,7 @@ class CSPage {
 
 
 	// Pads a 2D array's values to the same length vertically.
-	// Used in errorOutput to stylize plain text.
+	// Used in outputErrors to stylize plain text.
 	// [Value 1] [Value 2] [Value 3]
 	// [Val1]    [Val2]    [Val3]
 	public function arrayPadColumn($array) {
@@ -112,7 +100,9 @@ class CSPage {
 		// Set padding.
 		for ($x = 0; $x < $count_array; $x++) {
 			$count_array_x = count($array[$x]);
-			for ($y = 0; $y < $count_array_x; $y++) {
+
+			// Pad all but the last cell.
+			for ($y = 0; $y < $count_array_x - 1; $y++) {
 				$lines = explode(PHP_EOL, $array[$x][$y]);
 				$count_lines = count($lines);
 				$lines[$count_lines - 1] = str_pad($lines[$count_lines - 1], $max_length[$y]);
@@ -211,7 +201,7 @@ class CSPage {
 
 		// Fatal Error: Output errors and terminate instructions.
 		if (in_array($no, array(E_COMPILE_ERROR, E_CORE_ERROR, E_ERROR, E_USER_ERROR))) {
-			$this->errorOutput();
+			$this->outputErrors();
 			exit();
 		}
 
