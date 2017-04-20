@@ -25,6 +25,7 @@ class CSPage {
 		$errors        = array(),
 		$hooks         = array(),
 		$modules       = array(),
+		$modulemtimes  = array(),
 		$time_start    = 0,
 		$version       = 0.1;
 
@@ -63,6 +64,10 @@ class CSPage {
 
 		// Module class
 		include 'modules/Module.php';
+
+		// Check for when the framework has been updated.
+		$this->modulemtimes['CSPage'] = filemtime(__FILE__);
+		$this->modulemtimes['module'] = filemtime(__DIR__ . '/modules/Module.php');
 
 		// Default settings
 		$this
@@ -211,6 +216,13 @@ class CSPage {
 
 
 
+	// Check if a file path is an externally hosted file or not.
+	public function external($file) {
+		return preg_match('/^(?:[\d\w]+\:)?\/\//', $file);
+	}
+
+
+
 	// Get or set hooks.
 	public function hook($id, $callback = null) {
 
@@ -219,6 +231,7 @@ class CSPage {
 			$value = '';
 			if (array_key_exists($id, $this->hooks)) {
 				$count_hooks = count($this->hooks[$id]);
+				$this->debug(array('Generating hook: ' . $id, $count_hooks . ' callbacks'));
 				for ($x = 0; $x < $count_hooks; $x++)
 					$value .= $this->hooks[$id][$x]();
 			}
@@ -247,6 +260,7 @@ class CSPage {
 				trigger_error('Could not read module file: ' . $module_file, E_USER_ERROR);
 
 			// Make sure the class exists.
+			$this->modulemtimes[$module] = filemtime($module_file);
 			include $module_file;
 			$module_class = $this->moduleClassName($module);
 			if (!class_exists($module_class))
@@ -256,6 +270,16 @@ class CSPage {
 			$this->modules[$module] = array();
 		}
 		return $this;
+	}
+
+
+
+	// This framework's modification time.
+	public function mtime() {
+		$latest = 0;
+		foreach ($this->modulemtimes as $mtime)
+			$latest = max($latest, $mtime);
+		return $latest;
 	}
 
 
@@ -295,7 +319,7 @@ class CSPage {
 
 	// Convert module ID to class name.
 	public function moduleClassName($id) {
-		return 'CSPage_' . ucwords($id);
+		return 'CSPage_' . $this->moduleStdName($id);
 	}
 
 
@@ -311,7 +335,15 @@ class CSPage {
 
 	// Convert module ID to file name.
 	public function moduleFileName($id) {
-		return __DIR__ . '/modules/' . ucwords($id) . '.php';
+		return __DIR__ . '/modules/' . $this->moduleStdName($id) . '.php';
+	}
+
+
+
+	// Convert module ID to standardized name.
+	// mime type => MimeType
+	public function moduleStdName($id) {
+		return str_replace(' ', '', ucwords($id));
 	}
 
 
@@ -325,10 +357,10 @@ class CSPage {
 			$this->contentType('text/plain');
 		}
 
-		// Generate human-readable log.
+		// gzip if we are outputting and not debugging.
 		ob_start(
-			$this->debugEnabled() ||
-			$return_only ?
+			$return_only ||
+			$this->debugEnabled() ?
 			null :
 			'ob_gzhandler'
 		);
@@ -365,6 +397,10 @@ class CSPage {
 		else
 			echo 'No debug information.';
 		echo PHP_EOL, PHP_EOL, $this->time(), ' seconds';
+
+		$hook = $this->hook('debug');
+		if ($hook)
+			echo PHP_EOL, PHP_EOL, $hook;
 
 		// Output or return text.
 		if ($return_only) {
