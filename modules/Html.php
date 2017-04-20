@@ -58,14 +58,14 @@ class CSPage_Html extends CSPage_Module {
 		// Get <body>.
 		if (is_null($html)) {
 			$body   = $this->get('body');
-			$footer = $this->parent()->hook('footer');
+			$foot = $this->hook('foot');
 			return $body ?
 				str_replace(
 					'</body>',
-					$footer . '</body>',
+					$foot . '</body>',
 					$body
 				) :
-				$this->element('body', null, $footer);
+				$this->element('body', null, $foot);
 		}
 
 		// Set <body>.
@@ -152,17 +152,13 @@ class CSPage_Html extends CSPage_Module {
 	*/
 	public function favicon($href, $type = null) {
 		if (is_null($type))
-			$type = $this->parent()->module('mimeType')->get($href);
+			$type = $this->module('mime type')->file2type($href);
+		$ext = is_null($type) ? null : $this->module('mime type')->type2ext($type);
 
-		// If it's a local file, cache it to the static subdomain.
-		$local = getcwd() . '/' . $href;
-		if (file_exists($local)) {
-			preg_match('/^image\/(\w+)$/', $type, $ext);
-			$ext  = $ext ? $ext[1] : 'ico';
-			$href = $this->parent()->module('cache')
-				->ifUpdated($local, $ext)
-				->url($local, $ext);
-		}
+		// Cache it to the static subdomain.
+		$href = $this->module('cache')
+			->update($href, $ext, true)
+			->url($href);
 
 		// Convert to <link /> and place in <head>.
 		return $this
@@ -241,7 +237,8 @@ class CSPage_Html extends CSPage_Module {
 								'content' => '{{meta-value}}'
 							)
 						)
-					)
+					) .
+					$this->hook('head')
 				);
 
 		// Set <head>
@@ -326,81 +323,130 @@ class CSPage_Html extends CSPage_Module {
 		)
 			return $this->parent()->outputErrors($return_only);
 
-		// Template
-		$html = $this->docType() .
-			$this->element(
-				'html',
-				array('lang' => 'en'),
-				$this->head() .
-				$this->body()
-			);
+		$cache_module   = $this->module('cache');
+		$vars_json = json_encode($this->vars);
 
-		// Custom markup.
-		$html = $this->parseForeach($html);
-		$html = $this->parseIf($html);
-		$html = $this->parseAttributes($html);
+		// If we have already cached this page, display the cache.
+		if (
+			!$cache_module->disabled('html') &&
+			!$cache_module->expired($vars_json, 'html', true)
+		) {
+			$cache_filepath = $cache_module->filepath($vars_json, 'html');
 
-		// HTML Variables
-		$this->debug('Replacing HTML variables.');
-		$var_divider_regex = preg_quote($this->var_divider, '/');
+			// Set and check the ETag
+			if (!$return_only)
+				$cache_module->eTag($cache_filepath);
 
-		// Replace {{array-key}} and {{array-value}} if "key/value" are not actual indexes.
-		preg_match_all('/{{(' . $this->attr_var_regex . ')' . $var_divider_regex . '(key|value)}}/', $html, $matches);
-		$count_matches = count($matches[0]);
-		for ($x = 0; $x < $count_matches; $x++) {
-			$var = explode($this->var_divider, $matches[1][$x]);
-			array_push($var, $matches[2][$x]);
-			if (is_null($this->get($var))) {
+			// Output the HTML from the cache file instead of generating it.
+			$this->debug(array('HTML loaded from cache.', $cache_filepath));
+			$html = file_get_contents($cache_filepath);
+		}
 
-				// Replace {{path-to-variable-key}} with "variable"
-				if ($matches[2][$x] == 'key') {
-					$replace = explode($this->var_divider, $matches[1][$x]);
-					$replace = array_pop($replace);
+		// If we don't have a cached version of this page, generate the optimized HTML.
+		else {
+
+			// Template
+			$html = $this->docType() .
+				$this->element(
+					'html',
+					array('lang' => 'en'),
+					$this->head() .
+					$this->body()
+				);
+
+			// Custom markup.
+			$html = $this->parseForeach($html);
+			$html = $this->parseIf($html);
+			$html = $this->parseAttributes($html);
+
+			// HTML Variables
+			$this->debug('Replacing HTML variables.');
+			$var_divider_regex = preg_quote($this->var_divider, '/');
+
+			// Replace {{array-key}} and {{array-value}} if "key/value" are not actual indexes.
+			preg_match_all('/{{(' . $this->attr_var_regex . ')' . $var_divider_regex . '(key|value)}}/', $html, $matches);
+			$count_matches = count($matches[0]);
+			for ($x = 0; $x < $count_matches; $x++) {
+				$var = explode($this->var_divider, $matches[1][$x]);
+				array_push($var, $matches[2][$x]);
+				if (is_null($this->get($var))) {
+
+					// Replace {{path-to-variable-key}} with "variable"
+					if ($matches[2][$x] == 'key') {
+						$replace = explode($this->var_divider, $matches[1][$x]);
+						$replace = array_pop($replace);
+					}
+
+					// Replace {{path-to-variable-value}} with {{path-to-variable}}
+					else
+						$replace = '{{' . $matches[1][$x] . '}}';
+					$html = str_replace($matches[0][$x], $replace, $html);
 				}
-
-				// Replace {{path-to-variable-value}} with {{path-to-variable}}
-				else
-					$replace = '{{' . $matches[1][$x] . '}}';
-				$html = str_replace($matches[0][$x], $replace, $html);
 			}
+
+			// Replace the HTML variables with their values.
+			preg_match_all('/{{(' . $this->attr_var_regex . ')' . $var_divider_regex . 'value}}/', $html, $matches);
+			$count_matches = count($matches);
+			do {
+				$before = $html;
+				$this->varsIterator(
+					$this->vars,
+
+					// Foreach HTML Variable, replace {{VAR}} with value.
+					function($keys, $value, $ret) {
+						return str_replace('{{' . implode($this->var_divider, $keys) . '}}', $value, $ret);
+					},
+
+					$html
+				);
+				$after = $html;
+			}
+			while ($before != $after);
+
+			// If caching HTML isn't disabled, cache our result.
+			if (!$cache_module->disabled('html'))
+				$cache_module->store($vars_json, $html, 'html');
 		}
 
-		// Replace the HTML variables with their values.
-		preg_match_all('/{{(' . $this->attr_var_regex . ')' . $var_divider_regex . 'value}}/', $html, $matches);
-		$count_matches = count($matches);
-		do {
-			$before = $html;
-			$this->varsIterator(
-				$this->vars,
+		$this->debug(($return_only ? 'Returning' : 'Outputting') . ' HTML.');
 
-				// Foreach HTML Variable, replace {{VAR}} with value.
-				function($keys, $value, $ret) {
-					return str_replace('{{' . implode($this->var_divider, $keys) . '}}', $value, $ret);
-				},
-
-				$html
-			);
-			$after = $html;
+		// Headers only if we are outputting.
+		if (!$return_only) {
+			header('Content-Language: en-us');
+			$this->parent()->contentType('text/html');
 		}
-		while ($before != $after);
+
+		// gzip if we are outputting and not debugging.
+		ob_start(
+			$return_only ||
+			$this->parent()->debugEnabled() ?
+			null :
+			'ob_gzhandler'
+		);
 
 		// Replace these variables post-cache so that they don't each get their own cache file.
-		$html = str_replace(
+		echo $this->module('compress')->html(str_replace(
 			array('{{ENCODED_REQUEST_URI}}',                 '{{HTTP_HOST}}',       '{{REQUEST_URI}}'),
 			array(htmlspecialchars($_SERVER['REQUEST_URI']), $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI']),
 			$html
-		);
+		));
 
+		// Debug information.
 		if ($this->parent()->debugEnabled())
-			$html .= PHP_EOL . '<!--' . PHP_EOL . PHP_EOL . $this->parent()->outputErrors(true) . PHP_EOL . PHP_EOL . '-->';
+			echo
+				PHP_EOL, '<!--', PHP_EOL, PHP_EOL,
+				$this->parent()->outputErrors(true),
+				$this->hook('debug'),
+				PHP_EOL, PHP_EOL, '-->';
 
-		if ($return_only)
-			return $html;
+		// Return the HTML.
+		if ($return_only) {
+			$ogc = ob_get_contents();
+			ob_end_clean();
+			return $ogc;
+		}
 
-		header('Content-Language: en-us');
-		$this->parent()->contentType('text/html');
-		ob_start($this->parent()->debugEnabled() ? null : 'ob_gzhandler');
-		echo $html;
+		// Output the HTML.
 		ob_end_flush();
 		return $this;
 	}
@@ -483,11 +529,11 @@ class CSPage_Html extends CSPage_Module {
 			$innerHTML = $tag_html[1];
 
 			if (!is_array($var) || empty($var)) {
-				$this->debug(array('Generating HTML for each ' . $attr_var, 'zero children'));
+				$this->debug(array('Generating HTML for each ' . $attr_var . '.', 'zero children'));
 				$outerHTML_new = '';
 			}
 			else {
-				$this->debug(array('Generating HTML for each ' . $attr_var, count($var) . ' children'));
+				$this->debug(array('Generating HTML for each ' . $attr_var . '.', count($var) . ' children'));
 
 				// Prepare the variables.
 				$var_regex = preg_quote($attr_value == null ? $attr_var : $attr_value, '/');
@@ -596,8 +642,9 @@ class CSPage_Html extends CSPage_Module {
 
 			// Clean up.
 			$if_html   = $this->tagShift('if', $matches[0], $if_innerHTML);
-			$outerHTML = $if_html[0];
+			$if_outerHTML = $if_html[0];
 			$if_innerHTML = $if_html[1];
+			$outerHTML    = $if_outerHTML;
 
 			// Check for <else>content</else>
 			preg_match('/' . preg_quote($outerHTML, '/') . '(\s*\<else\>(.*)\<\/else\>)?/s', $html, $else_matches);
