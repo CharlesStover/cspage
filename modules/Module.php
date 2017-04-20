@@ -10,8 +10,24 @@ class CSPage_Module {
 
 	// Debugger
 	public function debug($debug) {
-		$this->parent()->debug($debug, get_class($this));
+		$this->parent()->debug($debug);
+
+		// return $this, not $this->parent()
 		return $this;
+	}
+
+
+
+	// Hook
+	public function hook($id, $callback = null) {
+		return $this->parent()->hook($id, $callback);
+	}
+
+
+
+	// Access another module.
+	public function module($id, $index = 0) {
+		return $this->parent()->module($id, $index);
 	}
 
 
