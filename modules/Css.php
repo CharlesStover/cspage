@@ -26,6 +26,16 @@ class CSPage_Css extends CSPage_Module {
 
 
 
+	// Call print().
+	public function __call($name, $arguments) {
+
+		if ($name == 'print')
+			return $this->add($arguments[0], 'foot', 'print', array_key_exists(1, $arguments) ? $arguments[1] : 'global');
+		return $this;
+	}
+
+
+
 	// Add CSS to the queue.
 	public function add($css, $loc = 'head', $media = 'all', $scope = 'global') {
 		if (
@@ -192,8 +202,7 @@ class CSPage_Css extends CSPage_Module {
 					// Compress & Cache
 					$this->debug('Caching CSS scope ' . $media . ' / ' . $scope . '.');
 					$cache_module->store(
-						$css,
-						$this->module('compress')->css($concat),
+						$css, implode(PHP_EOL, $concat),
 						array(
 							'dependencies' => $dependencies,
 							'ext'          => 'css'
@@ -248,7 +257,7 @@ class CSPage_Css extends CSPage_Module {
 
 	// Shortcuts
 	public function    all($css, $scope = 'global') { return $this->add($css, 'head', 'all',    $scope); }
-	public function  print($css, $scope = 'global') { return $this->add($css, 'foot', 'print',  $scope); }
+	// public function  print($css, $scope = 'global') { return $this->add($css, 'foot', 'print',  $scope); }
 	public function screen($css, $scope = 'global') { return $this->add($css, 'head', 'screen', $scope); }
 	public function speech($css, $scope = 'global') { return $this->add($css, 'foot', 'speech', $scope); }
 
