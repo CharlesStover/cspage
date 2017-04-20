@@ -93,7 +93,8 @@ class CSPage_Compress extends CSPage_Module {
 		if (!$this->parent()->devMachine()) {
 			$this->debug(array('YUI Compressing', $type));
 			$this->module('cache')->store($data, $data, 'tmp');
-			$ret = shell_exec('yui-compressor ' . getcwd() . '/' . $this->module('cache')->filepath($data, 'tmp') . ' --type ' . $type);
+			$this->debug(array('Executing shell command.', 'yui-compressor ' . $this->module('cache')->filepath($data, 'tmp') . ' --type ' . $type));
+			$ret = shell_exec('yui-compressor ' . $this->module('cache')->filepath($data, 'tmp') . ' --type ' . $type);
 			unlink($this->module('cache')->filepath($data, 'tmp'));
 
 			// Fix calc(100%+40px) => calc(100% + 40px)
