@@ -990,13 +990,40 @@ class CSPage_MimeType {
 
 
 
-	// Get a mime type from a file name.
-	public function get($file) {
-		$ext = array_pop(explode('.', $file));
+	// Get a mime type from a file extension.
+	public function ext2type($ext) {
 		return
 			array_key_exists($ext, self::$mime_types) ?
 			self::$mime_types[$ext] :
 			null;
+	}
+
+
+
+	// Get an extension from a file.
+	public function file2ext($file) {
+		$ext = explode('.', $file);
+		$ext = array_pop($ext);
+		if (array_key_exists($ext, self::$mime_types))
+			return $ext;
+		return null;
+	}
+
+
+
+	// Get a mime type from a file name.
+	public function file2type($file) {
+		if (function_exists('mime_content_type'))
+			return mime_content_type($file);
+		return $this->ext2type($this->file2ext($file));
+	}
+
+
+
+	// Get a file extension from a mime type.
+	public function type2ext($type) {
+		$search = array_search($type, self::$mime_types);
+		return $search ? $search : null;
 	}
 
 }
