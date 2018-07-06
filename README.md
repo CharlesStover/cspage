@@ -1,7 +1,7 @@
-# CSPage
-CSPage is a PHP framework designed to automate webpage optimization. It caches, compresses, concatenates, and otherwise optimizes HTML, CSS, JavaScript, and static file content distribution.
+# CSPage (PHP)
+_CSPage (PHP)_ is a PHP framework designed to automate webpage optimization. It caches, compresses, concatenates, and otherwise optimizes HTML, CSS, JavaScript, and static file content distribution.
 
-This repository contains an obsolete version that was never intended to be distributed.
+This repository contains an obsolete version that was never intended to be distributed. Future versions will be maintained in NodeJS.
 
 ## Supports
 * Caching: automated ETag generation, dependencies, permacaching
