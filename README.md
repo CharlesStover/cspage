@@ -1,12 +1,7 @@
 # CSPage
-Automated webpage optimization utility that caches, compresses, concatenates, and otherwise optimizes HTML, CSS, JavaScript, and static file content distribution.
+CSPage is a PHP framework designed to automate webpage optimization. It caches, compresses, concatenates, and otherwise optimizes HTML, CSS, JavaScript, and static file content distribution.
 
-The software is currently being rewritten from a single object to a module-based object. It is not a completed work in its current GitHub form, but is fully functional in its original structure.
-
-## License
-Currently released under CC BY-NC-ND, the intention is for this project to be used to improve my programming capabilities and team-friendly formatting moreso than be distributed or used by anyone else, until it is deemed complete.
-
-I encourage pull/merge requests and discussion on improvements, but I would prefer it not be distributed or modified without my verification until it is finished, at which point I will change the license.
+This repository contains an obsolete version that was never intended to be distributed.
 
 ## Supports
 * Caching: automated ETag generation, dependencies, permacaching
