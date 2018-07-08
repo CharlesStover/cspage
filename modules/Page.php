@@ -57,10 +57,15 @@ class CSPage_Page extends CSPage_Module {
 						if ($module_i->isFile()) {
 							$filename = explode('.', $module_i->getFilename());
 							$filename = array_shift($filename);
-							if (method_exists($module, $filename)) {
+							if (
+								method_exists($module, '__call') ||
+								method_exists($module, $filename)
+							) {
 								$this->debug(array('Found module method in page.', $module_name . '->' . $filename));
 								$module->$filename($module_i->getPathname());
 							}
+							else
+								$this->debug(array('Cannot find module method in page.', $module_name . '->' . $filename));
 						}
 					}
 				}

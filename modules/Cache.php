@@ -27,7 +27,7 @@ class CSPage_Cache extends CSPage_Module {
 		) {
 			$cwdd = '../' . $cwdd;
 			chdir('..');
-			$cwdi = getcwd();
+			$cwdi = getcwd() . '/';
 		}
 		chdir($cwd);
 		if (is_dir($cwdd . $this->dir()))
@@ -119,23 +119,38 @@ class CSPage_Cache extends CSPage_Module {
 			trigger_error($error, E_USER_ERROR);
 			$response = '/' . '* cURL Error: ' . $error . ' for ' . $url . ' *' . '/';
 			$expires  = time() + 60;
+			$content_type = null;
 		}
 
 		// No error.
 		else {
+			$error     = false;
 			$delimiter = "\r\n\r\n";
 			$response  = explode($delimiter, $response);
-			$expires   = array_shift($response);
+			$headers   = array_shift($response);
 
 			// Check for expiration.
-			preg_match('/max\-age=(\d+)/', $expires, $expires);
+			preg_match('/max\-age=(\d+)/', $headers, $expires);
 			if ($expires)
 				$expires = time() + $expires[1];
 			else
 				$expires = null;
+
+			// Check for a "more valid" Content-Type than the extension.
+			preg_match('/^Content\-Type\: ([\d\w\/\.\-\+]+)/im', $headers, $content_type);
+			if ($content_type) {
+				$content_type = $content_type[1];
+				$this->debug(array(
+					'Retrieved content type of ' . $url . '.',
+					$content_type
+				));
+			}
+			else
+				$content_type = null;
+
 			$response = implode($delimiter, $response);
 			$this->debug(array(
-				'Downloaded ' . $url,
+				'Downloaded ' . $url . '.',
 				$expires ? 'Expires ' . date('Y-m-d H:i:s', $expires) :
 				'No expiration.'
 			));
@@ -143,7 +158,9 @@ class CSPage_Cache extends CSPage_Module {
 		curl_close($ch);
 		return array(
 			'contents' => $response,
-			'expires'  => $expires
+			'error'    => $error,
+			'expires'  => $expires,
+			'type'     => $content_type
 		);
 	}
 
@@ -277,14 +294,13 @@ class CSPage_Cache extends CSPage_Module {
 
 
 
-	// Pop extension off filename.
-	public function extension($filename) {
+	/*public function extension($id) {
 		$ext = explode('.', $filename);
 		$ext = $ext[count($ext) - 1];
 		if (array_key_exists($ext, $this->ext_shorthand))
 			$ext = $this->ext_shorthand[$ext];
-		return strlen($ext) < 6 ? $ext : null;	
-	}
+		return strlen($ext) < 6 ? $ext : null;
+	}*/
 
 
 
@@ -314,7 +330,7 @@ class CSPage_Cache extends CSPage_Module {
 
 		// Attempt to rip extension from file name.
 		if (is_null($ext))
-			$ext = $this->extension($id);
+			$ext = $this->module('mime type')->file2ext($id);
 
 		// Generate directory and file name of cache file.
 		$sha1 = base_convert(sha1($id), 16, 36);
@@ -327,15 +343,26 @@ class CSPage_Cache extends CSPage_Module {
 		// Make sure the directories exist.
 		$mkdir = $this->dir() . $dir;
 		if (!is_dir($mkdir)) {
-			mkdir($mkdir);
-			chmod($mkdir, 0777);
+			$this->debug(array('Making cache directory.', $mkdir));
+			mkdir($mkdir); // chmods to 0777 by default
+			// chmod($mkdir, 0777);
 		}
 
-		// Return the file name.
-		return
+		$filename =
 			$dir . '/' .
 			substr($sha1, 2) .
 			(is_null($ext) || !$ext ? '' : '.' . $ext);
+
+		// Check for redirects.
+		$redirect_path = $this->dir() . $filename . '.redirect';
+		if (file_exists($redirect_path)) {
+			$new_filename = file_get_contents($redirect_path);
+			$this->debug(array('Redirecting ' . $filename . '.', $new_filename));
+			return $new_filename;
+		}
+
+		// Return the file name.
+		return $filename;
 	}
 
 
@@ -354,6 +381,19 @@ class CSPage_Cache extends CSPage_Module {
 
 
 
+	// Create a file redirect.
+	public function redirect($old_file, $old_ext, $new_file, $new_ext) {
+		$new_filename = $this->filename($new_file, $new_ext);
+		$this->debug(array('Creating redirect for ' . $this->filename($old_file, $old_ext) . '.', $new_filename));
+		file_put_contents(
+			$this->filepath($old_file, $old_ext) . '.redirect',
+			$new_filename
+		);
+		return $this;
+	}
+
+
+
 	// Cache data
 	// Store $contents to filepath($id) with $options
 	public function store($id, $contents, $options = array()) {
@@ -364,7 +404,7 @@ class CSPage_Cache extends CSPage_Module {
 
 		// Attempt to get extension from file name.
 		if (!array_key_exists('ext', $options))
-			$options['ext'] = $this->extension($id);
+			$options['ext'] = $this->module('mime type')->file2ext($id);
 
 		$ext      = $options['ext'];
 		$filepath = $this->filepath($id, $ext);
@@ -397,11 +437,15 @@ class CSPage_Cache extends CSPage_Module {
 			);
 		}
 
+		// If the contents are null, don't write the file. This is used if an error occurred in generating the file contents, but we may still want to generate dependencies/expirations.
 		// Only write the data if it is changed so that the client doesn't redownload the same content with a new file name.
 		$contents = is_null($options['ext']) ? $contents : $this->module('compress')->$ext($contents);
 		if (
-			!$this->exists($filepath) ||
-			$contents != file_get_contents($filepath)
+			$contents != null &&
+			(
+				!$this->exists($id, $ext) ||
+				$contents != file_get_contents($filepath)
+			)
 		) {
 			$this->debug(array('Writing cache.', $filepath));
 			file_put_contents($filepath, $contents);
@@ -421,19 +465,36 @@ class CSPage_Cache extends CSPage_Module {
 			$options = array('ext' => $options);
 
 		// File extension by default.
-		$ext = array_key_exists('ext', $options) ? $options['ext'] : null;
+		$options['ext'] = array_key_exists('ext', $options) ? $options['ext'] : $this->module('mime type')->file2ext($file);
 
 		// Check if the file needs updating.
 		// If the file doesn't exist, return $not_exist.
-		if ($this->expired($file, $ext, $not_exist)) {
+		if ($this->expired($file, $options['ext'], $not_exist)) {
 			$this->debug(array('Updating cache of expired file.', $file));
 
 			// Download external file.
 			if ($this->parent()->external($file)) {
 				$this->debug(array('Storing external file.', $file));
 				$download           = $this->download($file);
-				$contents           = $download['contents'];
 				$options['expires'] = $download['expires'];
+
+				// If there was an error downloading, keep the contents the same if they already exist in an older format.
+				$contents =
+					$download['error'] &&
+					$this->exists($file) ?
+					null :
+					$download['contents'];
+
+				// If the real content type doesn't match the extension provided, change the extension.
+				if (!is_null($download['type'])) {
+					$ext = $this->module('mime type')->type2ext($download['type']);
+					if ($ext != $options['ext']) {
+
+						// Redirect the provided extension to the new one.
+						$this->redirect($file, $options['ext'], $file, $ext);
+						$options['ext'] = $ext;
+					}
+				}
 			}
 
 			// Store local file.
@@ -453,16 +514,34 @@ class CSPage_Cache extends CSPage_Module {
 
 	// Get URL of cached files.
 	public function url($id, $ext = null) {
+		$mime_type = $this->module('mime type');
+
+		// Pop extension off of provided file name.
 		if (is_null($ext))
-			$ext = $this->extension($id);
+			$ext = $mime_type->file2ext($id);
+
+		// Get filename with provided extension to check for redirected extensions, then get extension from redirected filename.
+		$filename = $this->filename($id, $ext);
+		$ext      = $mime_type->file2ext($filename);
+
+		// File ID unique to modtime.
+		$modtime = '-' . base_convert(
+			$this->mtime($id, $ext),
+			10, 36
+		);
+
+		// If there is no extension, just append the modtime.
+		if (is_null($ext))
+			return
+				$this->base() .
+				$this->filename($id, $ext) .
+				$modtime;
+
+		// If there is an extension, prepend the modtime.
+		// Works only so long as filename() doesn't generate periods.
 		return
 			$this->base() .
-			$this->filename($id, false) . '.' .
-			base_convert(
-				$this->mtime($id, $ext),
-				10, 36
-			) .
-			(is_null($ext) ? '' : '.' . $ext);
+			str_replace('.', $modtime . '.', $this->filename($id, $ext));
 	}
 
 }

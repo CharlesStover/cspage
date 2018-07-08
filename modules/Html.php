@@ -324,7 +324,7 @@ class CSPage_Html extends CSPage_Module {
 			return $this->parent()->outputErrors($return_only);
 
 		$cache_module   = $this->module('cache');
-		$vars_json = json_encode($this->vars);
+		$vars_json = json_encode($this->vars) . '&&{debug:' . ($this->parent()->debugEnabled() ? '1' : '0') . '}';
 
 		// If we have already cached this page, display the cache.
 		if (
@@ -650,7 +650,7 @@ class CSPage_Html extends CSPage_Module {
 			preg_match('/' . preg_quote($outerHTML, '/') . '(\s*\<else\>(.*)\<\/else\>)?/s', $html, $else_matches);
 
 			// If <else> exists.
-			if ($else_matches[1]) {
+			if (array_key_exists(1, $else_matches)) {
 				$else_html = $this->tagShift('else', $else_matches[1], $else_matches[2]);
 				$else_innerHTML = $else_html[1];
 				$else_outerHTML = $else_html[0];

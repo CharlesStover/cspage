@@ -11,6 +11,16 @@ class CSPage_Css extends CSPage_Module {
 
 
 
+	// Call print().
+	public function __call($name, $arguments) {
+
+		if ($name == 'print')
+			return $this->add($arguments[0], 'foot', 'print', array_key_exists(1, $arguments) ? $arguments[1] : 'global');
+		return $this;
+	}
+
+
+
 	// Constructor
 	public function __construct($id = 0, $parent = null) {
 		$parent->hook(
@@ -21,16 +31,6 @@ class CSPage_Css extends CSPage_Module {
 			'foot',
 			function() { return $this->html('foot'); }
 		);
-		return $this;
-	}
-
-
-
-	// Call print().
-	public function __call($name, $arguments) {
-
-		if ($name == 'print')
-			return $this->add($arguments[0], 'foot', 'print', array_key_exists(1, $arguments) ? $arguments[1] : 'global');
 		return $this;
 	}
 
@@ -112,7 +112,7 @@ class CSPage_Css extends CSPage_Module {
 					}
 
 					// Check local files for updates.
-					else
+					else if (file_exists($css[$x]))
 						$scope_mod_time = max($scope_mod_time, filemtime($css[$x]));
 				}
 

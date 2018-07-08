@@ -160,6 +160,7 @@ class CSPage {
 	public function debugEnabled($bool = null) {
 		if (is_null($bool))
 			return $this->debug_enabled;
+		// $this->debug(($bool ? 'Enabling' : 'Disabling') . ' debugger.');
 		$this->debug_enabled = $bool;
 		return $this;
 	}
